@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans 
+	xmlns="http://www.springframework.org/schema/integration" 
+	xmlns:beans="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:jdbc="http://www.springframework.org/schema/integration/jdbc"
+	xmlns:ws="http://www.springframework.org/schema/integration/ws"
+	xmlns:stream="http://www.springframework.org/schema/integration/stream"
+	xmlns:amqp="http://www.springframework.org/schema/integration/amqp"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+	   		http://www.springframework.org/schema/beans/spring-beans-3.0.xsd	
+			http://www.springframework.org/schema/integration
+			http://www.springframework.org/schema/integration/spring-integration-3.0.xsd	
+			http://www.springframework.org/schema/integration/jdbc
+			http://www.springframework.org/schema/integration/jdbc/spring-integration-jdbc-3.0.xsd
+			http://www.springframework.org/schema/integration/ws
+            http://www.springframework.org/schema/integration/ws/spring-integration-ws-3.0.xsd 
+            http://www.springframework.org/schema/integration/stream
+            http://www.springframework.org/schema/integration/stream/spring-integration-stream-3.0.xsd      
+            http://www.springframework.org/schema/integration/amqp
+            http://www.springframework.org/schema/integration/amqp/spring-integration-amqp-3.0.xsd">
+
+	<beans:bean id="ampqHandler" class="org.krams.tutorial.si.MessageHandler" />
+	<beans:bean id="splitterBean" class="org.krams.tutorial.si.MessageSplitter" />
+	<beans:bean id="contentTransformerBean" class="org.krams.tutorial.si.ContentTransformer" />
+	<beans:bean id="productRouterBean" class="org.krams.tutorial.si.ProductRouter" />
+	<beans:bean id="filterBean" class="org.krams.tutorial.si.ProductFilter" />
+	<beans:bean id="productAggregatorBean" class="org.krams.tutorial.si.ProductAggregator" />
+	<beans:bean id="salesMapper" class="org.krams.tutorial.si.SalesMapper" />
+	<beans:bean id="inventoryMapper" class="org.krams.tutorial.si.InventoryMapper" />
+	<beans:bean id="orderMapper" class="org.krams.tutorial.si.OrderMapper" />
+
+    <channel id="amqpInboundChannel"></channel>
+    <amqp:inbound-gateway id="amqpInboundChannelId" queue-names="inbound.order.recv.queue" request-channel="amqpInboundChannel" connection-factory="rabbitConnectionFactory" acknowledge-mode="NONE"/> 
+
+	<service-activator input-channel="amqpInboundChannel"
+		ref="ampqHandler" method="handleMessage" output-channel="messageChannel" />	
+	<channel id="messageChannel"></channel>
+	<logging-channel-adapter id="logger" level="DEBUG" />	
+	<poller id="poller" default="true" fixed-rate="1000" />
+</beans:beans>

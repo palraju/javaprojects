@@ -1,0 +1,6 @@
+com/cognizant/stock/resources/StockResource.class
+com/cognizant/stock/services/StockService.class
+com/cognizant/stock/model/StockServiceResponse.class
+com/cognizant/stock/services/StockHealthCheckService.class
+com/cognizant/stock/StockServiceApplication.class
+com/cognizant/stock/model/Stock.class

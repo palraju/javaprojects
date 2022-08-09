@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans 
+	xmlns="http://www.springframework.org/schema/integration" 
+	xmlns:beans="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xmlns:jdbc="http://www.springframework.org/schema/integration/jdbc"
+	xmlns:ws="http://www.springframework.org/schema/integration/ws"
+	xmlns:stream="http://www.springframework.org/schema/integration/stream"
+	xmlns:amqp="http://www.springframework.org/schema/integration/amqp"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans 
+	   		http://www.springframework.org/schema/beans/spring-beans-3.0.xsd	
+			http://www.springframework.org/schema/integration
+			http://www.springframework.org/schema/integration/spring-integration-2.0.xsd	
+			http://www.springframework.org/schema/integration/jdbc
+			http://www.springframework.org/schema/integration/jdbc/spring-integration-jdbc-2.0.xsd
+			http://www.springframework.org/schema/integration/ws
+            http://www.springframework.org/schema/integration/ws/spring-integration-ws-2.0.xsd              
+            http://www.springframework.org/schema/integration/stream
+            http://www.springframework.org/schema/integration/stream/spring-integration-stream-2.0.xsd      
+            http://www.springframework.org/schema/integration/amqp
+            http://www.springframework.org/schema/integration/amqp/spring-integration-amqp-2.0.xsd">
+
+	<beans:bean id="ampqHandler" class="org.krams.tutorial.si.MessageHandler" />
+	<beans:bean id="splitterBean" class="org.krams.tutorial.si.MessageSplitter" />
+	<beans:bean id="contentTransformerBean" class="org.krams.tutorial.si.ContentTransformer" />
+	<beans:bean id="productRouterBean" class="org.krams.tutorial.si.ProductRouter" />
+	<beans:bean id="filterBean" class="org.krams.tutorial.si.ProductFilter" />
+	<beans:bean id="productAggregatorBean" class="org.krams.tutorial.si.ProductAggregator" />
+	<beans:bean id="salesMapper" class="org.krams.tutorial.si.SalesMapper" />
+	<beans:bean id="inventoryMapper" class="org.krams.tutorial.si.InventoryMapper" />
+	<beans:bean id="orderMapper" class="org.krams.tutorial.si.OrderMapper" />
+
+	<amqp:inbound-channel-adapter channel="amqpInboundChannel"
+		queue-name="mobile.queue" connection-factory="rabbitConnectionFactory" />
+	
+	<channel id="amqpInboundChannel">
+		<interceptors>
+			<wire-tap channel="logger" />
+		</interceptors>
+	</channel>
+
+	<service-activator input-channel="amqpInboundChannel"
+		ref="ampqHandler" method="handleMessage" output-channel="messageChannel" />
+	
+	<channel id="messageChannel">
+		<interceptors>
+			<wire-tap channel="logger" />
+		</interceptors>
+	</channel>
+
+	<logging-channel-adapter id="logger" level="ERROR" />
+	
+	<chain input-channel="messageChannel" output-channel="filteredChannel">
+		<splitter ref="splitterBean"/>
+		<filter ref="filterBean" method="filter"  discard-channel="rejectedMessagesChannel" />
+	</chain>
+
+	<publish-subscribe-channel id="rejectedMessagesChannel" />
+	
+	<header-enricher input-channel="rejectedMessagesChannel" output-channel="aggregateChannel">
+		<header name="valid" value="false" />
+	</header-enricher>
+
+	<channel id="filteredChannel">
+		<queue capacity="10" />
+	</channel>
+
+	<chain input-channel="filteredChannel">
+		<header-enricher>
+			<header name="valid" value="true" />
+		</header-enricher>
+		<transformer ref="contentTransformerBean" method="transform"/>
+		<router ref="productRouterBean" method="route" />
+ 	</chain>
+
+	<channel id="salesChannel">
+		<queue capacity="10" />
+	</channel>
+
+	<channel id="inventoryChannel">
+		<queue capacity="10" />
+	</channel>
+
+	<channel id="orderChannel">
+		<queue capacity="10" />
+	</channel>
+
+	<channel id="unknownChannel">
+		<interceptors>
+			<wire-tap channel="logger" />
+		</interceptors>
+	</channel>
+
+	<transformer input-channel="salesChannel" ref="salesMapper"
+		method="map" output-channel="aggregateChannel" />
+	<transformer input-channel="inventoryChannel" ref="inventoryMapper"
+		method="map" output-channel="aggregateChannel" />
+	<transformer input-channel="orderChannel" ref="orderMapper"
+		method="map" output-channel="aggregateChannel" />
+
+	<channel id="aggregateChannel">
+		<queue capacity="10" />
+	</channel>
+
+	<aggregator input-channel="aggregateChannel"
+		output-channel="wsChannel" ref="productAggregatorBean" method="send"
+		release-strategy="productAggregatorBean" release-strategy-method="release"
+		correlation-strategy="productAggregatorBean" correlation-strategy-method="correlate"
+		send-partial-result-on-expiry="false" />
+
+	<channel id="wsChannel">
+		<queue capacity="10" />
+	</channel>
+
+	<ws:outbound-gateway id="marshallingGateway"
+		request-channel="wsChannel" uri="http://localhost:8080/spring-ws-si/krams/ws"
+		marshaller="jaxbMarshaller" unmarshaller="jaxbMarshaller"
+		reply-channel="replyChannel" />
+
+	<stream:stdout-channel-adapter id="replyChannel" />
+
+	<poller id="poller" default="true" fixed-rate="1000" />
+
+</beans:beans>

@@ -1,0 +1,48 @@
+<?xml version='1.0'?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:cassandra="http://www.springframework.org/schema/data/cassandra"
+  xmlns:context="http://www.springframework.org/schema/context"
+  xmlns:p="http://www.springframework.org/schema/p"
+  xmlns:int="http://www.springframework.org/schema/integration"
+  xmlns:int-stream="http://www.springframework.org/schema/integration/stream"
+  xmlns:int-amqp="http://www.springframework.org/schema/integration/amqp"
+  xsi:schemaLocation="http://www.springframework.org/schema/cql http://www.springframework.org/schema/cql/spring-cql-1.0.xsd
+    http://www.springframework.org/schema/data/cassandra http://www.springframework.org/schema/data/cassandra/spring-cassandra-1.0.xsd
+    http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+    http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd
+    http://www.springframework.org/schema/rabbit http://www.springframework.org/schema/rabbit/spring-rabbit.xsd
+    http://www.springframework.org/schema/integration http://www.springframework.org/schema/integration/spring-integration.xsd
+    http://www.springframework.org/schema/integration/stream http://www.springframework.org/schema/integration/stream/spring-integration-stream.xsd
+    http://www.springframework.org/schema/integration/amqp http://www.springframework.org/schema/integration/amqp/spring-integration-amqp.xsd">
+
+  <!-- Loads the properties into the Spring Context and uses them to fill 
+    in placeholders in the bean definitions -->
+  <context:property-placeholder location="classpath:cassandra.properties" />
+  
+  
+ <context:component-scan base-package="com.cognizant" />
+ 
+ <context:annotation-config/>
+ 
+  <!-- Provides connection to the RabbitMQ broker -->
+ <bean id="rabbitConnectionFactory" class="org.springframework.amqp.rabbit.connection.CachingConnectionFactory"  p:username="guest" p:password="guest" p:port="5672">
+  <constructor-arg value="localhost" />
+ </bean>
+ 
+ <!-- A template for sending messages and performing other commands to RabbitMQ -->
+ <bean id="rabbitTemplate" class="org.springframework.amqp.rabbit.core.RabbitTemplate"
+  p:connectionFactory-ref="rabbitConnectionFactory" />
+  
+ <!-- This helps in configuring the AMQP broker, like creating a new queue -->
+ <bean id="amqpAdmin" class="org.springframework.amqp.rabbit.core.RabbitAdmin">
+  <constructor-arg ref="rabbitConnectionFactory"/>
+ </bean>
+ 
+ <bean id="ampqHandler" class="com.cognizant.ordermanagement.message.consumer.impl.MessageHandler" />
+ <bean id="splitterBean" class="com.cognizant.ordermanagement.message.consumer.impl.MessageSplitter" />
+ 
+ <int-amqp:channel id="amqpInboundChannel"/>
+ 
+ <int-amqp:inbound-channel-adapter channel="amqpInboundChannel" queue-names="inbound.order.recv.queue"  connection-factory="rabbitConnectionFactory"/>
+ 
+</beans>
